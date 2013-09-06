@@ -26,19 +26,14 @@ more responsive, since it can be notified immediately whenever the code changes.
 <p><b>How to use VCSUpdate</b><br/>
 Once you have the plugin installed on your TeamCity server, simply configure
 your VCS server to request the <b>vcsupdate.html</b> page, and add parameters for each
-of the VCS roots that should be queried for changes. For example:</p>
+of the VCS roots (by ID) that should be queried for changes.You can specify as many
+"id" parameters as you would like, separated by the '&' character.</p>
 
-<p><pre>${sampleUrl}</pre></p>
+<p>In addition to root IDs you can send build IDs with the "build" parameter. If you do
+not pass the "build" parameter then it will mark all builds for a VCS update. You can
+specify as many "build" parameters as you would like, separated by the '&' character.</p>
 
-<p>You can specify as many "name" parameters as you would like, separated by the
-'&' character, or if you'd prefer to use VCS root IDs, you can specify "id"
-parameters as well (ex: "id=3").</p>
-
-<p>It's fine to use either GET or POST requests, but the behavior differs slightly
-between the two. When you make a GET request, if you don't specify any VCS roots
-(through "name" or "id" parameters), VCSUpdate won't do anything, and will
-simply display some help text. However, when you make a POST request, if you
-don't specify any VCS roots, VCSUpdate will check for updates on ALL of your
-active VCS roots.</p>
+<p>f you're building the plugin yourself and specified a password, you can send it with
+the "pass" parameter.</p>
 </body>
 </html>

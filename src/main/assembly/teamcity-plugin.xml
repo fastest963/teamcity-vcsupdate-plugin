@@ -4,5 +4,6 @@
     <name>vcsupdate</name>
     <display-name>VCSUpdate</display-name>
     <version>${project.version}</version>
+    <description>Allows you to remotely update VCS roots. Path: /vcsupdate.html</description>
   </info>
 </teamcity-plugin>

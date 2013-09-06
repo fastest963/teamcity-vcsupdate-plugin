@@ -36,8 +36,8 @@ import java.util.Set;
 public final class TeamCityController extends AbstractController {
 
     private static final String ID_PARAM = "id";
-    private static final String NAME_PARAM = "name";
-    private static final String SAMPLENAME = "myvcsroot";
+    private static final String PASS_PARAM = "pass";
+    private static final String BUILD_PARAM = "build";
 
     private final WebControllerManager controllerManager;
     private final AuthorizationInterceptor interceptor;
@@ -46,6 +46,7 @@ public final class TeamCityController extends AbstractController {
 
     private String viewName = null;
     private String doneViewName = null;
+    private String authPassword = null;
 
     public TeamCityController(WebControllerManager controllerManager, AuthorizationInterceptor interceptor,
             VcsManager vcsManager, PluginDescriptor descriptor) {
@@ -53,7 +54,6 @@ public final class TeamCityController extends AbstractController {
         this.interceptor = interceptor;
         this.vcsManager = vcsManager;
         this.descriptor = descriptor;
-        log("Creating plugin");
     }
 
     @Override
@@ -68,24 +68,24 @@ public final class TeamCityController extends AbstractController {
     }
 
     private ModelAndView getModelAndView(HttpServletRequest request, HttpServletResponse response) {
-        // Get all of the VCS roots specified in the request
-        Set<SVcsRoot> roots = new LinkedHashSet<SVcsRoot>();
-
-        // Start by getting any root names from the request
-        String[] names = request.getParameterValues(NAME_PARAM);
-        if (names != null) {
-            for (String name : names) {
-                SVcsRoot root = vcsManager.findRootByName(name);
-                if (root != null) roots.add(root);
+        if (authPassword != null && authPassword.length() > 0) {
+            // Look at password
+            String[] passwords = request.getParameterValues(PASS_PARAM);
+            if (passwords == null || !authPassword.equals(passwords[0])) {
+                log("Invalid password sent: " + passwords[0]);
+                return new ModelAndView(viewName);
             }
         }
 
-        // Then look for any root IDs
+        // Get all of the VCS roots specified in the request
+        Set<SVcsRoot> roots = new LinkedHashSet<SVcsRoot>();
+
+        // Look for any root IDs
         String[] ids = request.getParameterValues(ID_PARAM);
         if (ids != null) {
             for (String id : ids) {
                 try {
-                    SVcsRoot root = vcsManager.findRootById(Long.parseLong(id));
+                    SVcsRoot root = vcsManager.findRootByExternalId(id);
                     if (root != null) roots.add(root);
                 } catch (NumberFormatException e) {
                     // just move on to the next ID
@@ -93,86 +93,63 @@ public final class TeamCityController extends AbstractController {
             }
         }
 
-        // Finally, if the request is a POST but we've found no roots, it may be
-        // due to bugs in some POST handling libraries. In this case, we'll
-        // update all of the roots.
-        if (names == null && ids == null && request.getMethod().equals("POST")) {
-            roots.addAll(vcsManager.getAllRegisteredVcsRoots());
+        // Look for any build IDs
+        String[] buildIDs = request.getParameterValues(BUILD_PARAM);
+
+        // Empty roots so bail
+        if (roots.isEmpty()) {
+            log("No roots specified!");
+            return new ModelAndView(viewName);
         }
 
-        // Did we get a submitted form?
-        if (!roots.isEmpty()) {
-            List<String> forcedVcsRootNames = new ArrayList<String>();
-            // Iterate through the roots
-            for (SVcsRoot root : roots) {
-                // Find the matching configurations
-                List<SBuildType> builds = vcsManager.getAllConfigurationUsages(root);
-                if (builds == null) continue;
+        List<String> forcedBuildNames = new ArrayList<String>();
+        // Iterate through the roots
+        for (SVcsRoot root : roots) {
+            // Find the matching configurations
+            List<SBuildType> builds = vcsManager.getAllConfigurationUsages(root);
+            if (builds == null) continue;
 
-                // Select the best configuration
-                SBuildType selected = null;
-                List<SVcsRoot> selectedRoots = null;
-                for (SBuildType build : builds) {
-                    if (!build.isPaused() && !build.isPersonal()) {
-                        List<SVcsRoot> buildRoots = build.getVcsRoots();
-                        if (selected == null || buildRoots.size() < selectedRoots.size()) {
-                            selected = build;
-                            selectedRoots = buildRoots;
+            // We're going to temporarily set the modification to 5 seconds and then trigger an update, and then set it back to what it was
+            int interval = (root.isUseDefaultModificationCheckInterval() ? -1 : root.getModificationCheckInterval());
+            root.setModificationCheckInterval(5);
+
+            boolean foundBuild = false;
+            for (SBuildType build : builds) {
+                if (build.isPaused()) {
+                    continue;
+                }
+                if (buildIDs != null) {
+                    boolean matched = false;
+                    //loop through buildIDs to see if this build matches any
+                    for (String buildID : buildIDs) {
+                        if (buildID.equals(build.getExternalId())) {
+                            matched = true;
+                            break;
                         }
                     }
+                    if (!matched) {
+                        continue;
+                    }
                 }
-
-                // Did we find a match?
-                if (selected == null) continue;
-
-                // Kick off the modification check
-                boolean defaultInterval = root.isUseDefaultModificationCheckInterval();
-                int interval = (defaultInterval ? -1 : root.getModificationCheckInterval());
-                root.setModificationCheckInterval(5);
-                log("Forcing check for " + selected.getName());
-                selected.forceCheckingForChanges();
-                forcedVcsRootNames.add(root.getName());
-
-                if (defaultInterval) {
-                    root.restoreDefaultModificationCheckInterval();
-                } else {
-                    root.setModificationCheckInterval(interval);
-                }
+                build.forceCheckingForChanges();
+                forcedBuildNames.add(build.getFullName());
+                log("Forcing check for " + build.getFullName());
+                foundBuild = true;
             }
 
-            // Redirect to the done page
-            String modelObject = forcedVcsRootNames.toString();
-            return new ModelAndView(doneViewName, "updatedVCSRoots", modelObject);
-        }
+            if (!foundBuild) {
+                log("Couldn't find a matching build for " + root.getName());
+            }
 
-        // Build a sample URL
-        StringBuilder sampleUrl = new StringBuilder();
-        sampleUrl.append(request.getRequestURL()).append('?');
-        boolean appendedRoot = false;
-
-        // Append the list of available roots
-        List<SVcsRoot> list = vcsManager.getAllRegisteredVcsRoots();
-        if (list != null) {
-            for (SVcsRoot root : list) {
-                if (appendedRoot) sampleUrl.append('&');
-                sampleUrl.append(NAME_PARAM).append('=').append(root.getName());
-                appendedRoot = true;
+            if (interval < 0) {
+                root.restoreDefaultModificationCheckInterval();
+            } else {
+                root.setModificationCheckInterval(interval);
             }
         }
 
-        // If we didn't get any roots, use a sample name
-        if (!appendedRoot) {
-            sampleUrl.append(NAME_PARAM).append('=').append(SAMPLENAME);
-        }
-
-        // Return a simple view that explains how to use the tool
-        String query = request.getQueryString();
-        if (query != null) sampleUrl.append('&').append(query);
-
-
-        String modelObject = response.encodeURL(sampleUrl.toString());
-        log("Creating modelview. View: " + viewName + " and model: " + modelObject);
-        return new ModelAndView(viewName, "sampleUrl", modelObject);
+        // Redirect to the done page
+        return new ModelAndView(doneViewName, "updatedVCSBuilds", forcedBuildNames.toString());
     }
 
     public void setControllerUri(String controllerUri) {
@@ -186,6 +163,10 @@ public final class TeamCityController extends AbstractController {
 
     public void setDoneViewName(String doneViewName) {
         this.doneViewName = descriptor.getPluginResourcesPath(doneViewName);
+    }
+
+    public void setAuthPassword(String authPassword) {
+        this.authPassword = authPassword;
     }
 
     private void log(String message) {

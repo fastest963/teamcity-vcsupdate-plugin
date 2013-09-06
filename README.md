@@ -20,8 +20,12 @@ Credits
 This project is a fork of the vcsupdate plugin created by Jon Vincent for TeamCity
 7 support. The original project is hosted at http://code.google.com/p/vcsupdate/
 
+Then the project was forked by James Hartig to add TeamCity 8 support and a password. To
+use the password, you must edit config/build-server-plugin-vcsupdate.xml and build the project
+using maven. It is built with an empty password by default.
+
 Note that this plugin will be obsolete when http://youtrack.jetbrains.com/issue/TW-23077
-is completed (probably TeamCity 8).
+is completed.
 
 How to use vcsupdate
 ====================
@@ -30,27 +34,24 @@ Once you have the plugin installed on your TeamCity server, simply configure
 your VCS server to request the vcsupdate.html page, and add parameters for each
 of the VCS roots that should be queried for changes. For example:
 
-http://my.build.server/vcsupdate.html?name=myvcsroot
+http://my.build.server/vcsupdate.html?id=myvcsid
 
 In the example above, you would replace "my.build.server" with the URL of your
-TeamCity build server, and you would replace "myvcsroot" with the name of the
-VCS root that you've configured in TeamCity.
+TeamCity build server, and you would replace "myvcsid" with the id of the
+VCS root that you've configured in TeamCity. You can specify as many "id" parameters
+as you would like, separated by the '&' character.
 
-You can specify as many "name" parameters as you would like, separated by the
-'&' character, or if you'd prefer to use VCS root IDs, you can specify "id"
-parameters as well (ex: "id=3").
+In addition to root IDs you can send build IDs with the "build" parameter. If you do not
+pass the "build" parameter then it will mark all builds for a VCS update. You can
+specify as many "build" parameters as you would like, separated by the '&' character.
 
-It's fine to use either GET or POST requests, but the behavior differs slightly
-between the two. When you make a GET request, if you don't specify any VCS roots
-(through "name" or "id" parameters), VCSUpdate won't do anything, and will
-simply display some help text. However, when you make a POST request, if you
-don't specify any VCS roots, VCSUpdate will check for updates on ALL of your
-active VCS roots.
+If you're building the plugin yourself and specified a password, you can send it with
+the "pass" parameter.
 
 How to install vcsupdate
 ========================
 
-Simply drop the [vcsupdate-2.0-teamcity-plugin.zip](http://danielflower.github.com/teamcity-vcsupdate-plugin/vcsupdate-2.0-teamcity-plugin.zip)
+Simply drop the [vcsupdate-2.1-teamcity-plugin.zip](http://fastest963.github.io/teamcity-vcsupdate-plugin/vcsupdate-2.1-teamcity-plugin.zip)
 file into the plugins/ subdirectory of your TeamCity data directory (.BuildServer/plugins),
 and restart TeamCity. Delete any existing vcsupdate*.zip files first.
 

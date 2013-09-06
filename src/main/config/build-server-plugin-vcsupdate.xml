@@ -6,6 +6,7 @@
         <property name="controllerUri" value="/vcsupdate.html"/>
         <property name="viewName" value="jsp/default.jsp"/>
         <property name="doneViewName" value="jsp/done.jsp"/>
+        <property name="authPassword" value=""/>
     </bean>
 
 </beans>
